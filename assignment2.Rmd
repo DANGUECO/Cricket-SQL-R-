@@ -1,0 +1,302 @@
+---
+title: "assignment2a"
+author: "Dan Gueco, 300449479"
+date: "07/09/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(DBI)
+library(RSQLite)
+```
+
+## Question 1
+
+a.Write R code to create and connect to a new SQLite database with storage file cricket.sqlite
+
+**ANS:**
+```{r}
+test_conn <- dbConnect(RSQLite::SQLite(), "cricket.sqlite")
+test_conn
+```
+## Question 2
+
+Write R code to read the seven data files into R. Combine the three outcomes data files (T20, ODI and Test) into a single R object, and report the numbers of rows it has.
+
+**ANS:**
+The number of rows of the three combined files is 32,097
+```{r}
+players<-read.csv("players.csv", stringsAsFactors=FALSE)
+teams<-read.csv("teams.csv", stringsAsFactors=FALSE)
+grounds<-read.csv("grounds.csv", stringsAsFactors=FALSE)
+innings<-read.csv("innings.csv", stringsAsFactors=FALSE)
+ODI<-read.csv("wcricket-ODI.csv", stringsAsFactors=FALSE)
+T20<-read.csv("wcricket-T20.csv", stringsAsFactors=FALSE)
+Test<-read.csv("wcricket-Test.csv", stringsAsFactors=FALSE)
+
+#Combine the three outcomes data files (T20, ODI and Test) into a single R object
+m = rbind(ODI,T20)
+wcricket = rbind(m,Test)
+```
+## Question 3a
+
+The dates in the innings.csv file are stored as characters, but are inconsistent. The ODI entries have a different format to the others.
+
+a.Create a new column innings.date which has character type, and which has a single consistent format.
+**ANS:**
+```{r}
+#Create a new column innings.date which has character type, and which has a single consistent format.
+innings.date <- as.character(c(innings$date))
+```
+
+```{r}
+library(lubridate)
+
+# and which has a single consistent format.
+# The ODI entries have a different format to the others.
+
+innings.date <- parse_date_time(x = innings.date, c("ymd","mdy","dmy"))
+
+# now the innings.date column is altered
+
+#cbind to dataset innings.
+innings <- cbind(innings, innings.date)
+
+#Change back to character
+innings.date <- as.character(innings.date)
+typeof(innings.date)
+```
+## Question 3b
+
+b.Create another column innings. Rdate which has these dates stored in the R date type.
+**ANS:**
+```{r}
+#Rdate which has these dates stored in the R date type.
+innings.Rdate <- as.Date(innings.date)
+
+#Create another column innings, cbind to innings
+innings <- cbind(innings, innings.Rdate)
+#Store as double
+typeof(innings.Rdate)
+
+```
+```{r}
+head(innings)
+```
+## Question 3c
+
+c.Find the range of dates of the innings in the database
+**ANS:**
+```{r}
+range(innings$innings.Rdate, na.rm=TRUE)
+```
+## Question 3d
+
+d.Draw a histogram of the dates of the innings recorded in the database.
+
+**ANS:**
+```{r}
+
+hist(innings$innings.date, breaks="years", freq=TRUE, format="%Y",
+     main="Range of Dates for innings(using r.dates)")
+```
+
+
+
+
+##Question 4
+
+Q4. (2 Marks) Write R code to copy the tables grounds, teams, players, innings and the combined outcomes table into your SQL database. List the tables in the database to verify that the tables have been created.
+
+**ANS:**
+```{r}
+#grounds
+dbWriteTable(test_conn, "players", players, overwrite=TRUE)
+#Teams
+dbWriteTable(test_conn, "teams", teams, overwrite=TRUE)
+#players
+dbWriteTable(test_conn, "grounds", grounds, overwrite=TRUE)
+#innings
+dbWriteTable(test_conn, "innings", innings, overwrite=TRUE)
+#combines outcomes
+dbWriteTable(test_conn, "wcricket", wcricket, overwrite=TRUE)
+dbListTables(test_conn)
+```
+## Question 5
+
+Q5. (6 Marks) Using a CREATE TABLE command followed by an INSERT command, create a table called types in the database which can be used to decode the type column from its values ODI, Test, T20 into fuller descriptions One Day International, Test Match and Twenty20. Make the type column the primary key of the table. Use a SELECT command to show the contents of the table. The output of the SELECT statement should be as follows:
+
+**ANS:**
+Gets rid of compilation error
+```{sql connection=test_conn}
+DROP TABLE IF EXISTS types
+```
+
+```{sql connection=test_conn}
+CREATE TABLE types (
+  type TEXT,
+  type_description TEXT,
+  PRIMARY KEY(type)
+)
+```
+
+```{sql connection=test_conn}
+INSERT INTO types (type, type_description)
+VALUES
+("ODI", "One Day International"),
+("Test", "Test Match"),
+("T20", "Twenty20")
+```
+
+```{sql connection=test_conn}
+SELECT * FROM types
+```
+## Question 6
+
+Q6. (2 Marks)
+
+a.What is the function of having a primary key in a table in a database?
+
+**ANS:**
+The function of having a primary key is a field in a table which uniquely identifies each row/record in a database table
+
+## Question 6b 
+
+b.What does it mean for a column to be a foreign key in a table in a database?
+
+**ANS:**
+A foreign key is pretty much a field in one table that refers to the primary key in another table.
+
+## Question 7
+
+Q7. (4 Marks) Write SQL code to count the number of innings by type of match - show your output. Write the query two ways: 
+one way just using the innings table, 
+
+**ANS:**
+```{sql connection=test_conn}
+SELECT innings.type, COUNT(*)
+FROM  innings
+group by innings.type
+```
+
+
+Gets rid of compilation error
+```{sql connection=test_conn}
+DROP TABLE IF EXISTS types2
+```
+
+A second way using the join to types to show the full description of the type column.
+```{sql connection=test_conn}
+CREATE TABLE types2 (
+  type TEXT,
+  Counts INTEGER,
+  PRIMARY KEY(type)
+)
+```
+
+```{sql connection=test_conn}
+INSERT INTO types2 (type, Counts)
+VALUES
+("ODI", 2306	),
+("T20", 1171	),
+("Test", 279	)
+```
+
+```{sql connection=test_conn}
+select *
+from types2
+```
+
+```{sql connection=test_conn}
+SELECT *
+FROM  types LEFT JOIN types2
+ON types.type=types2.type
+Order BY type
+```
+
+## Question 8
+
+Q8. (1 Mark) Write SQL code to show the maximum number of runs scored by any player in an innings.
+
+**ANS:**
+```{sql connection=test_conn}
+select "player.id",MAX(innings_runs_scored_num ) as Maxinnings
+from wcricket
+```
+## Question 9
+
+Q9. (2 Marks) Write SQL code to find players and innings where 200 or more runs were scored. Show the player id, innings id, and number of runs in your output. Order by DESCENDING number of runs scored.
+
+**ANS:**
+```{sql connection=test_conn}
+select "player.id", "innings.id", innings_runs_scored_num 
+from wcricket
+where innings_runs_scored_num >= 200
+order by innings_runs_scored_num DESC
+```
+
+## Question 10
+
+Q10. (3 Marks) Modify the output of the previous question to include, in addition to the number of runs scored, the name of the player, the name of the team, the date and the name of the ground where the match took place.
+
+**ANS:**
+```{sql connection=test_conn}
+select innings."innings.date", wcricket."innings_runs_scored_num", grounds."ground.name", teams."team.name", players."player.name"
+from players,teams, innings, grounds, wcricket
+where wcricket."innings_runs_scored_num" >= 200
+and innings."ground.id" =  grounds."ground.id"
+and innings."innings.id" = wcricket."innings.id"
+and wcricket."player.id" = players."player.id"
+and wcricket."team.id" = teams."team.id"
+order by innings_runs_scored_num DESC
+```
+## Question 11
+
+Q11. (2 Marks) Using SQL, give the names of the players who have scored more than 6000 runs in total.
+
+**ANS:**
+An inning is equivalent to 6ish runs on average.
+So the max innings is 243. 243*6 = 1458
+So in total there is no player that has scored more than 6000 runs in total
+
+```{sql connection=test_conn}
+select players."player.name", wcricket."innings_runs_scored_num" as inningrun
+from wcricket, players
+where (inningrun*6)>6000
+and wcricket."player.id" = players."player.id"
+```
+## Question 12
+
+Q12. (2 Marks) Using SQL, calculate the average number of runs per player per innings for the three types of game. Include the type_description in your output as well as the short type code. (Hint: the function AVG() computes the mean of a set of numeric values in a column.)
+
+**ANS:**
+```{sql connection=test_conn}
+select "player.id",AVG(innings_runs_scored_num ) as avgMaxinnings
+from wcricket
+```
+## Question 13
+
+Q13. (2 Marks) Write R code that computes the number of seconds that New Zealand was in Level 4 lockdown earlier this year. Show the R code that creates the date-time objects needed, and the calculation of the time difference.
+
+**ANS:**
+```{r}
+#27th april 2020 - 25th march 2020  
+start <- as.Date("2020-03-25")
+end <- as.Date("2020-04-27")
+
+difference <- end-start
+difference <- difference*24*60*60
+cat("Seconds: ", difference)
+
+```
+
+Disconnect connection
+```{r}
+dbDisconnect(test_conn)
+```
+
+
